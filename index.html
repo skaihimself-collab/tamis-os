@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="TAMIS OS">
+<meta name="theme-color" content="#000000">
+<title>TAMIS OS</title>
+
+<!-- PWA Manifest inline -->
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22TAMIS%20Personal%20OS%22%2C%22short_name%22%3A%22TAMIS%20OS%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23000000%22%2C%22theme_color%22%3A%22%23000000%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABmJLR0QA%2FwD%2FAP%2BgvaeTAAAASUlEQVR4nO3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBuAABHgAAAABJRU5ErkJggg%3D%3D%22%2C%22sizes%22%3A%22192x192%22%7D%5D%7D">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Anton&display=swap');
+
+/* fallback if offline - fonts still work via cache after first load */
+:root {
+  --bg: #000;
+  --fg: #fff;
+  --mid: #888;
+  --dim: #333;
+  --dimmer: #1a1a1a;
+  --dimmest: #0d0d0d;
+  --border: #1c1c1c;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
+  --font-display: 'Anton', 'Arial Black', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font-mono); overscroll-behavior: none; }
+::-webkit-scrollbar { width: 2px; }
+::-webkit-scrollbar-thumb { background: var(--dim); }
+textarea { resize: none; outline: none; font-family: var(--font-mono); }
+button { cursor: pointer; font-family: var(--font-mono); -webkit-appearance: none; }
+input { font-family: var(--font-mono); outline: none; }
+
+@keyframes fadeDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.fade { animation: fadeDown .22s ease; }
+.chip {
+  background: transparent; color: var(--dim); border: 1px solid var(--border);
+  padding: 6px 13px; font-size: 10px; letter-spacing: .1em;
+  transition: all .15s; white-space: nowrap;
+}
+.chip.active, .chip:active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip:hover { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--dim); padding: 10px 16px; font-size: 10px;
+  letter-spacing: .15em; transition: all .15s;
+}
+.btn:hover, .btn:active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn.primary { border-color: var(--fg); color: var(--fg); }
+.btn.primary:hover, .btn.primary:active { background: var(--fg); color: var(--bg); }
+.btn.danger:hover { border-color: var(--fg); color: var(--fg); }
+
+.row { border-bottom: 1px solid #0f0f0f; padding: 13px 0 13px 10px; cursor: pointer; transition: background .1s; }
+.row:hover, .row:active { background: #0a0a0a; }
+
+.card { border: 1px solid #111; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; transition: background .1s; }
+.card:hover, .card:active { background: #080808; }
+
+/* API key setup screen */
+#setup { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; z-index:200; }
+#setup.hidden { display:none; }
+
+/* Offline banner */
+#offline-banner { position:fixed; bottom:0; left:0; right:0; background:#111; border-top:1px solid #1c1c1c; padding:8px 20px; font-size:9px; letter-spacing:.15em; color:#444; text-align:center; z-index:100; display:none; }
+#offline-banner.show { display:block; }
+
+/* Toast */
+#toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:999; background:#fff; color:#000; padding:9px 22px; font-size:11px; letter-spacing:.15em; display:none; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#toast.show { display:block; animation:fadeDown .2s ease; }
+
+/* Header */
+#header { border-bottom:1px solid var(--dimmer); padding:0 16px; display:flex; align-items:stretch; justify-content:space-between; height:52px; position:sticky; top:0; background:#000; z-index:50; }
+.header-brand { display:flex; align-items:center; gap:12px; }
+.header-brand h1 { font-family:var(--font-display); font-size:20px; letter-spacing:.12em; }
+.header-brand span { font-size:8px; color:#333; letter-spacing:.22em; }
+.header-nav { display:flex; }
+.nav-btn { background:none; border:none; color:#333; padding:0 12px; font-size:9px; letter-spacing:.16em; border-bottom:1px solid transparent; transition:color .15s; }
+.nav-btn.active { color:#fff; border-bottom-color:#fff; }
+.lang-bar { display:flex; align-items:center; gap:1px; }
+.lang-btn { background:transparent; border:none; color:#333; padding:4px 7px; font-size:10px; transition:all .15s; }
+.lang-btn.active { background:#fff; color:#000; }
+
+/* Main content */
+#main { max-width:760px; margin:0 auto; padding:24px 16px 80px; }
+
+/* Capture */
+.area-bar { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:18px; }
+.train-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+.train-hint { border:1px solid var(--border); border-left:2px solid var(--fg); padding:12px 14px; margin-bottom:14px; background:#050505; font-size:9px; color:#444; letter-spacing:.12em; line-height:1.7; }
+.input-wrap { position:relative; margin-bottom:10px; }
+.side-line { position:absolute; top:0; left:0; width:2px; height:100%; background:#222; }
+.side-line.train { background:#fff; }
+#capture-text { width:100%; background:#000; border:1px solid var(--border); border-left:none; color:#fff; padding:14px 16px; font-size:13px; line-height:1.75; letter-spacing:.02em; }
+.rec-dot { position:absolute; top:12px; right:12px; font-size:9px; color:#fff; letter-spacing:.2em; animation:blink 1s infinite; }
+.capture-actions { display:flex; gap:8px; }
+.stats-grid { margin-top:32px; display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid #111; padding-top:24px; }
+.stat-cell { border-left:1px solid #111; padding-left:16px; }
+.stat-cell:first-child { border-left:none; padding-left:0; }
+.stat-label { font-size:8px; color:#2a2a2a; letter-spacing:.2em; margin-bottom:8px; }
+.stat-num { font-family:var(--font-display); font-size:28px; letter-spacing:.05em; line-height:1; }
+.stat-sub { font-size:8px; color:#2a2a2a; margin-top:4px; }
+.lang-activity { margin-top:24px; border-top:1px solid #111; padding-top:20px; }
+.lang-activity-label { font-size:8px; color:#2a2a2a; letter-spacing:.22em; margin-bottom:12px; }
+.lang-grid { display:grid; grid-template-columns:repeat(4,1fr); }
+.lang-cell { border-left:1px solid #111; padding-left:16px; }
+.lang-cell:first-child { border-left:none; padding-left:0; }
+.lang-flag { font-size:16px; margin-bottom:4px; }
+.lang-count { font-family:var(--font-display); font-size:20px; letter-spacing:.05em; line-height:1; color:#333; }
+.lang-count.active { color:#fff; }
+.lang-train { font-size:8px; color:#2a2a2a; margin-top:3px; }
+
+/* Offline queue badge */
+.queue-badge { font-size:8px; color:#555; border:1px solid #1c1c1c; padding:2px 7px; letter-spacing:.1em; margin-left:8px; }
+
+/* Filter bar */
+.filter-bar { display:flex; gap:5px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+.divider { width:1px; height:20px; background:#1a1a1a; }
+
+/* Thoughts list */
+.thought-meta { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:5px; }
+.thought-area { font-size:8px; color:#444; letter-spacing:.18em; }
+.thought-date { font-size:8px; color:#1c1c1c; }
+.thought-title { font-size:14px; font-weight:500; letter-spacing:.02em; }
+.thought-body { font-size:12px; color:#666; line-height:1.75; margin-top:10px; }
+.tag { font-size:8px; color:#2a2a2a; border:1px solid #1a1a1a; padding:2px 7px; letter-spacing:.1em; }
+.tag-row { display:flex; gap:5px; flex-wrap:wrap; margin-top:10px; }
+
+/* Language feedback */
+.feedback-box { border:1px solid var(--border); border-left:2px solid var(--fg); padding:14px; margin:12px 0; background:#050505; }
+.feedback-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.feedback-label { font-size:8px; color:#444; letter-spacing:.18em; }
+.score-bar { display:flex; gap:3px; }
+.score-cell { width:18px; height:18px; border:1px solid #222; display:flex; align-items:center; justify-content:center; font-size:8px; color:#333; font-weight:700; }
+.score-cell.active { background:#fff; color:#000; border-color:#fff; }
+.correction { margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #0d0d0d; }
+.correction-line { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.corr-orig { font-size:11px; color:#333; text-decoration:line-through; }
+.corr-arrow { font-size:9px; color:#222; }
+.corr-new { font-size:11px; color:#aaa; }
+.corr-note { font-size:10px; color:#444; margin-top:3px; line-height:1.5; }
+.natural-label { font-size:8px; color:#333; letter-spacing:.15em; margin-bottom:4px; }
+.natural-text { font-size:12px; color:#555; font-style:italic; line-height:1.6; }
+.encourage { font-size:10px; color:#333; border-top:1px solid #0d0d0d; padding-top:8px; margin-top:8px; }
+
+/* Todo columns */
+.todo-cols { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; align-items:start; }
+.col-header { padding-bottom:10px; margin-bottom:10px; display:flex; justify-content:space-between; }
+.col-header-text { font-size:8px; letter-spacing:.18em; }
+.col-header-count { font-size:8px; color:#1c1c1c; }
+.todo-area { font-size:7px; color:#2a2a2a; letter-spacing:.15em; margin-bottom:5px; }
+.todo-text { font-size:11px; color:#ccc; line-height:1.5; }
+.todo-text.done { color:#333; text-decoration:line-through; }
+.progress-track { height:1px; background:#0f0f0f; position:relative; margin-top:6px; }
+.progress-fill { position:absolute; left:0; top:0; height:1px; background:#fff; transition:width .3s; }
+.progress-fill.done { background:#222; }
+.step-row { display:flex; gap:7px; align-items:flex-start; padding:5px 0; border-top:1px solid #0a0a0a; cursor:pointer; }
+.step-check { width:11px; height:11px; border:1px solid #1c1c1c; flex-shrink:0; margin-top:2px; display:flex; align-items:center; justify-content:center; }
+.step-check.done { background:#fff; border-color:#fff; }
+.step-check-mark { color:#000; font-size:7px; }
+.step-text { font-size:10px; color:#777; line-height:1.5; }
+.step-text.done { color:#222; text-decoration:line-through; }
+.todo-actions { display:flex; gap:4px; margin-top:10px; flex-wrap:wrap; }
+
+/* Pending indicator */
+.pending-dot { display:inline-block; width:5px; height:5px; border-radius:50%; background:#555; margin-left:5px; animation:blink 2s infinite; }
+
+/* Setup screen styles */
+.setup-logo { font-family:var(--font-display); font-size:36px; letter-spacing:.15em; margin-bottom:8px; }
+.setup-sub { font-size:9px; color:#333; letter-spacing:.22em; margin-bottom:40px; }
+.setup-label { font-size:9px; color:#444; letter-spacing:.18em; margin-bottom:8px; }
+.setup-input { width:100%; background:#000; border:1px solid #1c1c1c; color:#fff; padding:12px 16px; font-size:13px; letter-spacing:.05em; margin-bottom:8px; }
+.setup-hint { font-size:9px; color:#2a2a2a; letter-spacing:.1em; line-height:1.7; margin-bottom:24px; }
+.setup-btn { width:100%; background:transparent; border:1px solid #fff; color:#fff; padding:12px; font-size:10px; letter-spacing:.2em; transition:all .15s; }
+.setup-btn:hover { background:#fff; color:#000; }
+</style>
+</head>
+<body>
+
+<!-- API Key Setup Screen -->
+<div id="setup">
+  <div class="setup-logo">TAMIS OS</div>
+  <div class="setup-sub">PERSONAL OS · EINMALIGE EINRICHTUNG</div>
+  <div style="width:100%;max-width:380px;">
+    <div class="setup-label">ANTHROPIC API KEY</div>
+    <input type="password" id="api-key-input" class="setup-input" placeholder="sk-ant-api03-...">
+    <div class="setup-hint">
+      Deinen Key findest du unter console.anthropic.com<br>
+      Er wird nur lokal auf diesem Gerat gespeichert.<br>
+      Kein Server, kein Dritter hat Zugriff.
+    </div>
+    <button class="setup-btn" onclick="saveApiKey()">SPEICHERN &amp; STARTEN</button>
+    <div id="setup-error" style="color:#555;font-size:9px;letter-spacing:.1em;margin-top:12px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- Offline Banner -->
+<div id="offline-banner">&#9679; OFFLINE — Gedanken werden lokal gespeichert und automatisch verarbeitet wenn du wieder online bist</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Header -->
+<div id="header">
+  <div class="header-brand">
+    <h1>TAMIS</h1>
+    <span>PERSONAL OS</span>
+  </div>
+  <div class="header-nav">
+    <button class="nav-btn active" id="nav-capture" onclick="setView('capture')">CAPTURE</button>
+    <button class="nav-btn" id="nav-thoughts" onclick="setView('thoughts')">GEDANKEN · 0</button>
+    <button class="nav-btn" id="nav-todos" onclick="setView('todos')">TODOS · 0</button>
+  </div>
+  <div class="lang-bar">
+    <button class="lang-btn active" onclick="setLang('de')">DE</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('el')">ΕΛ</button>
+    <button class="lang-btn" onclick="setLang('es')">ES</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG & DATA
+// ═══════════════════════════════════════════════
+const AREAS = [
+  { id:'skaipitch', label:'SkaiPitch' },
+  { id:'pinkpudel', label:'Pink Pudel' },
+  { id:'privat',    label:'Privat' },
+  { id:'fitness',   label:'Fitness' },
+];
+const LANGS = [
+  { id:'de', label:'DE', full:'Deutsch',   locale:'de-DE', flag:'🇩🇪' },
+  { id:'en', label:'EN', full:'English',   locale:'en-US', flag:'🇬🇧' },
+  { id:'el', label:'ΕΛ', full:'Ελληνικά', locale:'el-GR', flag:'🇬🇷' },
+  { id:'es', label:'ES', full:'Español',   locale:'es-ES', flag:'🇪🇸' },
+];
+const UI = {
+  de: { capture:'CAPTURE', thoughts:'GEDANKEN', todos:'TODOS', area:'BEREICH', speak:'SPRECHEN', stop:'STOP', submit:'AUFNEHMEN', processing:'VERARBEITE', allAreas:'ALLE', allStatus:'ALLE STATUS', noThoughts:'NOCH KEINE GEDANKEN', noTodos:'KEINE TODOS', del:'LOESCHEN', trainMode:'TRAINING', trainHint:'Schreibe bewusst in deiner Zielsprache. Claude gibt dir danach Feedback.', feedback:'FEEDBACK', open:'Offen', inprogress:'In Bearbeitung', done:'Erledigt', pending:'WARTEND', thoughts_word:'Gedanken' },
+  en: { capture:'CAPTURE', thoughts:'THOUGHTS', todos:'TODOS', area:'AREA', speak:'SPEAK', stop:'STOP', submit:'CAPTURE', processing:'PROCESSING', allAreas:'ALL', allStatus:'ALL STATUS', noThoughts:'NO THOUGHTS YET', noTodos:'NO TODOS', del:'DELETE', trainMode:'TRAINING', trainHint:'Write deliberately in your target language. Claude will give feedback afterwards.', feedback:'FEEDBACK', open:'Open', inprogress:'In Progress', done:'Done', pending:'PENDING', thoughts_word:'thoughts' },
+  el: { capture:'ΚΑΤΑΓΡΑΦΗ', thoughts:'ΣΚΕΨΕΙΣ', todos:'ΕΡΓΑΣΙΕΣ', area:'ΤΟΜΕΑΣ', speak:'ΟΜΙΛΙΑ', stop:'ΣΤΑΣΗ', submit:'ΑΠΟΘΗΚΕΥΣΗ', processing:'ΕΠΕΞΕΡΓΑΣΙΑ', allAreas:'ΟΛΑ', allStatus:'ΟΛΑ', noThoughts:'ΚΑΜΙΑ ΣΚΕΨΗ', noTodos:'ΚΑΜΙΑ ΕΡΓΑΣΙΑ', del:'ΔΙΑΓΡΑΦΗ', trainMode:'ΕΚΠΑΙΔΕΥΣΗ', trainHint:'Γραψε στη γλωσσα-στοχο σου. Θα λαβεις ανατροφοδοτηση.', feedback:'ΑΞΙΟΛΟΓΗΣΗ', open:'Ανοιχτο', inprogress:'Σε εξελιξη', done:'Ολοκληρωμενο', pending:'ΑΝΑΜΟΝΗ', thoughts_word:'σκεψεις' },
+  es: { capture:'CAPTURAR', thoughts:'PENSAMIENTOS', todos:'TAREAS', area:'AREA', speak:'HABLAR', stop:'PARAR', submit:'GUARDAR', processing:'PROCESANDO', allAreas:'TODOS', allStatus:'TODOS', noThoughts:'SIN PENSAMIENTOS', noTodos:'SIN TAREAS', del:'ELIMINAR', trainMode:'ENTRENAMIENTO', trainHint:'Escribe en tu idioma objetivo. Claude te dara retroalimentacion.', feedback:'RETROALIMENTACION', open:'Abierto', inprogress:'En progreso', done:'Completado', pending:'PENDIENTE', thoughts_word:'pensamientos' },
+};
+
+const DATA_KEY = 'tamis_os_v1';
+const APIKEY_KEY = 'tamis_apikey';
+const PREFS_KEY = 'tamis_prefs';
+
+let state = {
+  data: { thoughts: [], todos: [], queue: [] },
+  view: 'capture',
+  lang: 'de',
+  area: 'skaipitch',
+  targetLang: 'en',
+  trainMode: false,
+  recording: false,
+  processing: false,
+  filterArea: 'all',
+  filterStatus: 'all',
+  filterLang: 'all',
+  openThought: null,
+  openTodo: null,
+  online: navigator.onLine,
+};
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(DATA_KEY)) || { thoughts:[], todos:[], queue:[] }; } catch { return { thoughts:[], todos:[], queue:[] }; }
+}
+function saveData() { localStorage.setItem(DATA_KEY, JSON.stringify(state.data)); }
+function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; } }
+function savePrefs() { localStorage.setItem(PREFS_KEY, JSON.stringify({ lang:state.lang, area:state.area, targetLang:state.targetLang, trainMode:state.trainMode })); }
+function getApiKey() { return localStorage.getItem(APIKEY_KEY) || ''; }
+
+// ═══════════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════════
+function saveApiKey() {
+  const k = document.getElementById('api-key-input').value.trim();
+  if (!k.startsWith('sk-ant')) {
+    document.getElementById('setup-error').textContent = 'Key muss mit sk-ant beginnen';
+    return;
+  }
+  localStorage.setItem(APIKEY_KEY, k);
+  document.getElementById('setup').classList.add('hidden');
+  init();
+}
+
+// ═══════════════════════════════════════════════
+// CLAUDE API
+// ═══════════════════════════════════════════════
+async function callClaude(raw, area, langId, trainMode, targetLang) {
+  const aLabel = AREAS.find(a => a.id === area)?.label || area;
+  const langFull = LANGS.find(l => l.id === langId)?.full || 'Deutsch';
+  const targetFull = LANGS.find(l => l.id === targetLang)?.full || langFull;
+  let prompt;
+  if (trainMode) {
+    prompt = `You are a personal assistant and language coach. The user wrote a thought in ${langFull} as language practice. Target language: ${targetFull}. Area: ${aLabel}.\n\nInput: "${raw}"\n\nRespond ONLY with JSON (no markdown, no backticks):\n{"title":"Short title in ${langFull} max 7 words","summary":"2-3 sentence summary in ${langFull}","tags":["tag1"],"todos":[{"text":"task in ${langFull}","steps":["step"]}],"languageFeedback":{"score":"A or B or C or D","corrections":[{"original":"phrase","corrected":"better","explanation":"note in ${langFull}"}],"naturalAlternative":"natural version in ${targetFull}","encouragement":"1 sentence in ${langFull}"}}`;
+  } else {
+    prompt = `You are a personal assistant. Input language: ${langFull}. Area: ${aLabel}.\n\nInput: "${raw}"\n\nRespond ONLY with JSON (no markdown, no backticks):\n{"title":"Short title in ${langFull} max 7 words","summary":"2-3 sentence summary in ${langFull}","tags":["tag1"],"todos":[{"text":"task in ${langFull}","steps":["step"]}]}`;
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-api-key': getApiKey(), 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1200, messages:[{role:'user',content:prompt}] }),
+  });
+  if (!res.ok) throw new Error('API ' + res.status);
+  const d = await res.json();
+  const t = d.content?.map(i => i.text||'').join('') || '{}';
+  try { return JSON.parse(t.replace(/```json|```/g,'').trim()); } catch { return { title:'...', summary:raw, tags:[], todos:[] }; }
+}
+
+// ═══════════════════════════════════════════════
+// OFFLINE QUEUE
+// ═══════════════════════════════════════════════
+async function processQueue() {
+  if (!state.online || state.data.queue.length === 0) return;
+  const item = state.data.queue[0];
+  try {
+    const r = await callClaude(item.raw, item.area, item.lang, item.trainMode, item.targetLang);
+    // Update the thought
+    const idx = state.data.thoughts.findIndex(t => t.id === item.thoughtId);
+    if (idx !== -1) {
+      state.data.thoughts[idx].title = r.title || state.data.thoughts[idx].title;
+      state.data.thoughts[idx].summary = r.summary || item.raw;
+      state.data.thoughts[idx].tags = r.tags || [];
+      state.data.thoughts[idx].languageFeedback = r.languageFeedback || null;
+      state.data.thoughts[idx].pending = false;
+    }
+    // Add todos
+    const todos = (r.todos || []).map((t, i) => ({
+      id: item.thoughtId + '_' + i, thoughtId: item.thoughtId, area: item.area, lang: item.lang,
+      text: t.text, steps: (t.steps||[]).map(s=>({text:s,done:false})),
+      status:'open', createdAt: new Date().toISOString(),
+    }));
+    state.data.todos.push(...todos);
+    state.data.queue.shift();
+    saveData();
+    toast(state.data.thoughts[idx]?.title || 'Verarbeitet');
+    render();
+    // Process next
+    if (state.data.queue.length > 0) setTimeout(processQueue, 1000);
+  } catch(e) {
+    console.log('Queue processing failed, will retry when online', e);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════
+async function capture() {
+  const textarea = document.getElementById('capture-text');
+  const raw = textarea.value.trim();
+  if (!raw) return;
+
+  const T = UI[state.lang];
+  const thoughtId = Date.now().toString();
+  const thought = {
+    id: thoughtId, area: state.area, lang: state.lang, trainMode: state.trainMode,
+    raw, title: raw.slice(0, 40) + (raw.length > 40 ? '...' : ''),
+    summary: '', tags: [], languageFeedback: null,
+    pending: true, createdAt: new Date().toISOString(),
+  };
+
+  state.data.thoughts.unshift(thought);
+  textarea.value = '';
+
+  if (state.online) {
+    state.processing = true;
+    render();
+    try {
+      const r = await callClaude(raw, state.area, state.lang, state.trainMode, state.targetLang);
+      const idx = state.data.thoughts.findIndex(t => t.id === thoughtId);
+      if (idx !== -1) {
+        state.data.thoughts[idx].title = r.title || thought.title;
+        state.data.thoughts[idx].summary = r.summary || raw;
+        state.data.thoughts[idx].tags = r.tags || [];
+        state.data.thoughts[idx].languageFeedback = r.languageFeedback || null;
+        state.data.thoughts[idx].pending = false;
+      }
+      const todos = (r.todos || []).map((t, i) => ({
+        id: thoughtId + '_' + i, thoughtId, area: state.area, lang: state.lang,
+        text: t.text, steps: (t.steps||[]).map(s=>({text:s,done:false})),
+        status:'open', createdAt: new Date().toISOString(),
+      }));
+      state.data.todos.push(...todos);
+      toast(r.title || thought.title);
+    } catch(e) {
+      // Put in queue if API fails
+      state.data.queue.push({ thoughtId, raw, area:state.area, lang:state.lang, trainMode:state.trainMode, targetLang:state.targetLang });
+      toast('Gespeichert (Verarbeitung ausstehend)');
+    }
+    state.processing = false;
+  } else {
+    // Offline: save raw, queue for later
+    state.data.queue.push({ thoughtId, raw, area:state.area, lang:state.lang, trainMode:state.trainMode, targetLang:state.targetLang });
+    toast('Offline gespeichert (' + state.data.queue.length + ' in Warteschlange)');
+  }
+
+  saveData();
+  render();
+}
+
+let recRef = null;
+function toggleRec() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) { toast('Sprache nicht verfugbar'); return; }
+  if (state.recording) { recRef?.stop(); state.recording = false; render(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = new SR();
+  r.lang = LANGS.find(l => l.id === state.lang)?.locale || 'de-DE';
+  r.continuous = true; r.interimResults = true;
+  r.onresult = e => {
+    const t = document.getElementById('capture-text');
+    if (t) t.value = Array.from(e.results).map(x => x[0].transcript).join(' ');
+  };
+  r.onend = () => { state.recording = false; render(); };
+  r.start(); recRef = r; state.recording = true; render();
+}
+
+function setView(v) {
+  state.view = v; state.openThought = null; state.openTodo = null; render();
+}
+function setLang(l) {
+  state.lang = l; savePrefs(); render();
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.lang-btn').forEach(b => { if (b.textContent.trim() === LANGS.find(x=>x.id===l)?.label) b.classList.add('active'); });
+}
+function toggleTrainMode() { state.trainMode = !state.trainMode; savePrefs(); render(); }
+function setArea(a) { state.area = a; savePrefs(); render(); }
+function setTargetLang(l) { state.targetLang = l; savePrefs(); render(); }
+function setFilterArea(a) { state.filterArea = a; render(); }
+function setFilterStatus(s) { state.filterStatus = s; render(); }
+function setFilterLang(l) { state.filterLang = l; render(); }
+function toggleThought(id) { state.openThought = state.openThought === id ? null : id; render(); }
+function toggleTodo(id) { state.openTodo = state.openTodo === id ? null : id; render(); }
+function setTodoStatus(id, status) { const t = state.data.todos.find(t=>t.id===id); if(t) t.status=status; saveData(); render(); }
+function toggleStep(tid, si) { const t = state.data.todos.find(t=>t.id===tid); if(t && t.steps[si]) t.steps[si].done=!t.steps[si].done; saveData(); render(); }
+function delThought(id) { state.data.thoughts = state.data.thoughts.filter(t=>t.id!==id); state.data.todos = state.data.todos.filter(t=>t.thoughtId!==id); state.openThought=null; saveData(); render(); }
+function delTodo(id) { state.data.todos = state.data.todos.filter(t=>t.id!==id); state.openTodo=null; saveData(); render(); }
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs||{})) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else el.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return el;
+}
+
+function scoreBar(score) {
+  const d = h('div', {class:'score-bar'});
+  for (const s of ['A','B','C','D']) {
+    d.appendChild(h('div', {class:'score-cell' + (s===score?' active':'')}, s));
+  }
+  return d;
+}
+
+function renderCapture(T) {
+  const qCount = state.data.queue.length;
+  const frag = document.createDocumentFragment();
+
+  // Area bar
+  const areaBar = h('div', {class:'area-bar'});
+  for (const a of AREAS) {
+    areaBar.appendChild(h('button', {class:'chip'+(state.area===a.id?' active':''), onclick:()=>setArea(a.id)}, a.label));
+  }
+
+  // Train row
+  const trainRow = h('div', {class:'train-row'});
+  const areaSection = h('div', {});
+  const areaLbl = h('div', {style:{fontSize:'9px',color:'#333',letterSpacing:'.2em',marginBottom:'8px'}}, T.area);
+  areaSection.appendChild(areaLbl); areaSection.appendChild(areaBar);
+
+  const trainSection = h('div', {style:{textAlign:'right'}});
+  const trainLbl = h('div', {style:{fontSize:'9px',color:'#333',letterSpacing:'.2em',marginBottom:'8px'}}, T.trainMode);
+  const trainBtn = h('button', {class:'chip'+(state.trainMode?' active':''), onclick:toggleTrainMode}, state.trainMode?'ON':'OFF');
+  trainSection.appendChild(trainLbl); trainSection.appendChild(trainBtn);
+  trainRow.appendChild(areaSection); trainRow.appendChild(trainSection);
+
+  frag.appendChild(trainRow);
+
+  // Train hint
+  if (state.trainMode) {
+    const hint = h('div', {class:'train-hint'}, T.trainHint);
+    const targetRow = h('div', {style:{display:'flex',gap:'6px',marginTop:'10px'}});
+    for (const l of LANGS.filter(x=>x.id!==state.lang)) {
+      targetRow.appendChild(h('button', {class:'chip'+(state.targetLang===l.id?' active':''), onclick:()=>setTargetLang(l.id)}, l.flag+' '+l.label));
+    }
+    hint.appendChild(targetRow);
+    frag.appendChild(hint);
+  }
+
+  // Textarea
+  const inputWrap = h('div', {class:'input-wrap'});
+  const sideLine = h('div', {class:'side-line'+(state.trainMode?' train':'')});
+  const ta = h('textarea', {
+    id:'capture-text', rows:'8',
+    placeholder: state.trainMode
+      ? (state.lang==='de'?'Schreibe hier auf '+LANGS.find(l=>l.id===state.targetLang)?.full+'...':'Write here in '+LANGS.find(l=>l.id===state.targetLang)?.full+'...')
+      : (state.lang==='de'?'Gedanken, Ideen, Aufgaben...':state.lang==='en'?'Thoughts, ideas, tasks...':state.lang==='el'?'Σκεψεις, ιδεες, εργασιες...':'Pensamientos, ideas, tareas...'),
+  });
+  ta.addEventListener('keydown', e => { if (e.key==='Enter'&&(e.metaKey||e.ctrlKey)) capture(); });
+  inputWrap.appendChild(sideLine); inputWrap.appendChild(ta);
+  if (state.recording) inputWrap.appendChild(h('span', {class:'rec-dot'}, '● REC'));
+  frag.appendChild(inputWrap);
+
+  // Actions
+  const actions = h('div', {class:'capture-actions'});
+  const recBtn = h('button', {class:'btn'+(state.recording?' primary':''), onclick:toggleRec}, state.recording?'⏹ '+T.stop:'🎙 '+T.speak);
+  const submitBtn = h('button', {class:'btn primary', style:{flex:'1'}, onclick:capture},
+    state.processing ? T.processing+'  ...' : T.submit+'   ⌘↵');
+  if (state.processing) submitBtn.disabled = true;
+  actions.appendChild(recBtn); actions.appendChild(submitBtn);
+  frag.appendChild(actions);
+
+  // Offline queue indicator
+  if (qCount > 0) {
+    frag.appendChild(h('div', {style:{marginTop:'12px',fontSize:'9px',color:'#444',letterSpacing:'.15em'}},
+      '⟳  '+qCount+(state.lang==='de'?' Gedanke(n) warten auf Verarbeitung':' thought(s) waiting to be processed')));
+  }
+
+  // Stats grid
+  const statsGrid = h('div', {class:'stats-grid'});
+  for (const a of AREAS) {
+    const open = state.data.todos.filter(t=>t.area===a.id&&t.status!=='done').length;
+    const tc = state.data.thoughts.filter(t=>t.area===a.id).length;
+    const cell = h('div', {class:'stat-cell'});
+    cell.appendChild(h('div', {class:'stat-label'}, a.label.toUpperCase()));
+    cell.appendChild(h('div', {class:'stat-num'}, String(open)));
+    cell.appendChild(h('div', {class:'stat-sub'}, tc+' '+T.thoughts_word));
+    statsGrid.appendChild(cell);
+  }
+  frag.appendChild(statsGrid);
+
+  // Lang activity
+  const la = h('div', {class:'lang-activity'});
+  la.appendChild(h('div', {class:'lang-activity-label'}, T.lang+' ACTIVITY'));
+  const lg = h('div', {class:'lang-grid'});
+  for (const l of LANGS) {
+    const count = state.data.thoughts.filter(t=>t.lang===l.id).length;
+    const train = state.data.thoughts.filter(t=>t.lang===l.id&&t.trainMode).length;
+    const cell = h('div', {class:'lang-cell'});
+    cell.appendChild(h('div', {class:'lang-flag'}, l.flag));
+    cell.appendChild(h('div', {class:'lang-count'+(l.id===state.lang?' active':'')}, String(count)));
+    cell.appendChild(h('div', {class:'lang-train'}, train+' training'));
+    lg.appendChild(cell);
+  }
+  la.appendChild(lg);
+  frag.appendChild(la);
+
+  return frag;
+}
+
+function renderThoughts(T) {
+  const frag = document.createDocumentFragment();
+
+  // Filter bar
+  const bar = h('div', {class:'filter-bar'});
+  for (const a of [{id:'all',label:T.allAreas},...AREAS]) {
+    bar.appendChild(h('button', {class:'chip'+(state.filterArea===a.id?' active':''), onclick:()=>setFilterArea(a.id)}, a.label||a.id));
+  }
+  bar.appendChild(h('div', {class:'divider'}));
+  for (const l of [{id:'all',label:'ALL',flag:''},...LANGS]) {
+    bar.appendChild(h('button', {class:'chip'+(state.filterLang===l.id?' active':''), onclick:()=>setFilterLang(l.id)}, (l.flag?l.flag+' ':'')+l.label));
+  }
+  frag.appendChild(bar);
+
+  const filtered = state.data.thoughts.filter(t =>
+    (state.filterArea==='all'||t.area===state.filterArea) &&
+    (state.filterLang==='all'||t.lang===state.filterLang)
+  );
+
+  if (filtered.length === 0) {
+    frag.appendChild(h('div', {style:{color:'#222',fontSize:'11px',letterSpacing:'.15em',paddingTop:'48px',textAlign:'center'}}, T.noThoughts));
+    return frag;
+  }
+
+  for (const t of filtered) {
+    const al = AREAS.find(a=>a.id===t.area);
+    const ll = LANGS.find(l=>l.id===t.lang);
+    const rel = state.data.todos.filter(x=>x.thoughtId===t.id);
+    const isOpen = state.openThought === t.id;
+
+    const row = h('div', {class:'row', onclick:()=>toggleThought(t.id)});
+    const inner = h('div', {style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}});
+    const left = h('div', {style:{flex:'1'}});
+
+    // Meta
+    const meta = h('div', {class:'thought-meta'});
+    meta.appendChild(h('span', {class:'thought-area'}, al?.label?.toUpperCase()||''));
+    meta.appendChild(h('span', {}, ll?.flag||''));
+    if (t.trainMode) meta.appendChild(h('span', {style:{fontSize:'8px',color:'#555',border:'1px solid #1c1c1c',padding:'1px 6px',letterSpacing:'.1em'}}, 'TRAINING'));
+    if (t.pending) { const pd = h('span', {class:'pending-dot'}); meta.appendChild(pd); }
+    if (rel.length > 0) meta.appendChild(h('span', {style:{fontSize:'8px',color:'#333',borderLeft:'1px solid #1c1c1c',paddingLeft:'10px'}}, rel.length+' TODOS'));
+    meta.appendChild(h('span', {class:'thought-date'}, new Date(t.createdAt).toLocaleDateString('de-DE')));
+    left.appendChild(meta);
+    left.appendChild(h('div', {class:'thought-title'}, t.title || t.raw.slice(0,50)));
+
+    if (isOpen) {
+      const body = h('div', {onclick:e=>e.stopPropagation()});
+      if (t.summary) body.appendChild(h('div', {class:'thought-body'}, t.summary));
+      else if (t.pending) body.appendChild(h('div', {style:{fontSize:'11px',color:'#333',marginTop:'10px',fontStyle:'italic'}}, t.lang==='de'?'Wird verarbeitet sobald online...':'Processing when back online...'));
+
+      if (t.tags && t.tags.length > 0) {
+        const tr = h('div', {class:'tag-row'});
+        for (const tag of t.tags) tr.appendChild(h('span', {class:'tag'}, '#'+tag));
+        body.appendChild(tr);
+      }
+
+      if (t.languageFeedback) {
+        const fb = t.languageFeedback;
+        const box = h('div', {class:'feedback-box'});
+        const fh = h('div', {class:'feedback-header'});
+        fh.appendChild(h('span', {class:'feedback-label'}, T.feedback));
+        fh.appendChild(scoreBar(fb.score));
+        box.appendChild(fh);
+        if (fb.corrections && fb.corrections.length > 0) {
+          for (const c of fb.corrections) {
+            const corr = h('div', {class:'correction'});
+            const line = h('div', {class:'correction-line'});
+            line.appendChild(h('span', {class:'corr-orig'}, c.original));
+            line.appendChild(h('span', {class:'corr-arrow'}, '→'));
+            line.appendChild(h('span', {class:'corr-new'}, c.corrected));
+            corr.appendChild(line);
+            if (c.explanation) corr.appendChild(h('div', {class:'corr-note'}, c.explanation));
+            box.appendChild(corr);
+          }
+        }
+        if (fb.naturalAlternative) {
+          box.appendChild(h('div', {class:'natural-label'}, 'NATURAL'));
+          box.appendChild(h('div', {class:'natural-text'}, fb.naturalAlternative));
+        }
+        if (fb.encouragement) box.appendChild(h('div', {class:'encourage'}, fb.encouragement));
+        body.appendChild(box);
+      }
+
+      if (rel.length > 0) {
+        const tl = h('div', {style:{marginBottom:'10px'}});
+        for (const td of rel) {
+          const STATUS_DOT = {open:'#fff',inprogress:'#888',done:'#333'};
+          const tr = h('div', {style:{fontSize:'11px',color:'#444',padding:'3px 0',display:'flex',gap:'8px',alignItems:'center'}});
+          const dot = h('span', {style:{width:'4px',height:'4px',borderRadius:'50%',background:STATUS_DOT[td.status]||'#333',flexShrink:'0',display:'inline-block'}});
+          tr.appendChild(dot); tr.appendChild(document.createTextNode(td.text));
+          tl.appendChild(tr);
+        }
+        body.appendChild(tl);
+      }
+
+      const delBtn = h('button', {class:'btn danger', style:{marginTop:'12px',fontSize:'8px',padding:'4px 10px',letterSpacing:'.15em'}, onclick:()=>delThought(t.id)}, T.del);
+      body.appendChild(delBtn);
+      left.appendChild(body);
+    }
+
+    inner.appendChild(left);
+    inner.appendChild(h('span', {style:{color:'#1c1c1c',fontSize:'9px',marginLeft:'10px',marginTop:'2px'}}, isOpen?'▲':'▼'));
+    row.appendChild(inner);
+    frag.appendChild(row);
+  }
+  return frag;
+}
+
+function renderTodos(T) {
+  const frag = document.createDocumentFragment();
+  const STATUS_COLORS = {open:'#fff', inprogress:'#555', done:'#1c1c1c'};
+  const STATUS_TEXT = {open:'#fff', inprogress:'#777', done:'#2a2a2a'};
+
+  // Filter bar
+  const bar = h('div', {class:'filter-bar'});
+  for (const a of [{id:'all',label:T.allAreas},...AREAS]) {
+    bar.appendChild(h('button', {class:'chip'+(state.filterArea===a.id?' active':''), onclick:()=>setFilterArea(a.id)}, a.label||a.id));
+  }
+  bar.appendChild(h('div', {style:{flex:'1'}}));
+  for (const s of ['all','open','inprogress','done']) {
+    const lbl = s==='all'?T.allStatus:(T[s]||s).toUpperCase();
+    bar.appendChild(h('button', {class:'chip'+(state.filterStatus===s?' active':''), onclick:()=>setFilterStatus(s)}, lbl));
+  }
+  frag.appendChild(bar);
+
+  const filtered = state.data.todos.filter(t =>
+    (state.filterArea==='all'||t.area===state.filterArea) &&
+    (state.filterStatus==='all'||t.status===t.status) &&
+    (state.filterStatus==='all'||t.status===state.filterStatus)
+  );
+
+  const cols = h('div', {class:'todo-cols'});
+  for (const s of ['open','inprogress','done']) {
+    const col = h('div', {});
+    const ch = h('div', {class:'col-header', style:{borderBottom:`1px solid ${STATUS_COLORS[s]}`}});
+    ch.appendChild(h('span', {class:'col-header-text', style:{color:STATUS_TEXT[s]}}, (T[s]||s).toUpperCase()));
+    const colTodos = filtered.filter(t=>t.status===s);
+    ch.appendChild(h('span', {class:'col-header-count'}, String(colTodos.length)));
+    col.appendChild(ch);
+
+    for (const todo of colTodos) {
+      const al = AREAS.find(a=>a.id===todo.area);
+      const ll = LANGS.find(l=>l.id===todo.lang);
+      const isOpen = state.openTodo === todo.id;
+      const doneSteps = todo.steps.filter(x=>x.done).length;
+
+      const card = h('div', {class:'card', onclick:()=>toggleTodo(todo.id)});
+      const am = h('div', {style:{display:'flex',gap:'5px',alignItems:'center',marginBottom:'5px'}});
+      am.appendChild(h('span', {class:'todo-area'}, al?.label?.toUpperCase()||''));
+      if (ll) am.appendChild(h('span', {style:{fontSize:'9px'}}, ll.flag));
+      card.appendChild(am);
+      card.appendChild(h('div', {class:'todo-text'+(s==='done'?' done':'')}, todo.text));
+
+      if (todo.steps.length > 0) {
+        const pg = h('div', {style:{marginTop:'7px'}});
+        pg.appendChild(h('div', {style:{fontSize:'8px',color:'#2a2a2a',marginBottom:'3px'}}, doneSteps+'/'+todo.steps.length));
+        const track = h('div', {class:'progress-track'});
+        const fill = h('div', {class:'progress-fill'+(s==='done'?' done':''), style:{width:(todo.steps.length?doneSteps/todo.steps.length*100:0)+'%'}});
+        track.appendChild(fill); pg.appendChild(track);
+        card.appendChild(pg);
+      }
+
+      if (isOpen) {
+        const detail = h('div', {onclick:e=>e.stopPropagation(), style:{marginTop:'10px'}});
+        for (let i=0; i<todo.steps.length; i++) {
+          const step = todo.steps[i];
+          const sr = h('div', {class:'step-row', onclick:()=>toggleStep(todo.id,i)});
+          const chk = h('span', {class:'step-check'+(step.done?' done':'')});
+          if (step.done) chk.appendChild(h('span', {class:'step-check-mark'}, '✓'));
+          sr.appendChild(chk);
+          sr.appendChild(h('span', {class:'step-text'+(step.done?' done':'')}, step.text));
+          detail.appendChild(sr);
+        }
+        const acts = h('div', {class:'todo-actions'});
+        for (const ns of ['open','inprogress','done'].filter(x=>x!==s)) {
+          acts.appendChild(h('button', {class:'btn', style:{fontSize:'7px',padding:'3px 7px',letterSpacing:'.1em'}, onclick:()=>setTodoStatus(todo.id,ns)}, '→ '+(T[ns]||ns).toUpperCase()));
+        }
+        acts.appendChild(h('button', {class:'btn danger', style:{fontSize:'7px',padding:'3px 7px',marginLeft:'auto'}, onclick:()=>delTodo(todo.id)}, '✕'));
+        detail.appendChild(acts);
+        card.appendChild(detail);
+      }
+      col.appendChild(card);
+    }
+    cols.appendChild(col);
+  }
+  frag.appendChild(cols);
+  return frag;
+}
+
+function render() {
+  const T = UI[state.lang];
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+
+  // Update nav labels
+  const openCount = state.data.todos.filter(t=>t.status!=='done').length;
+  document.getElementById('nav-capture').textContent = T.capture;
+  document.getElementById('nav-thoughts').textContent = T.thoughts+' · '+state.data.thoughts.length;
+  document.getElementById('nav-todos').textContent = T.todos+' · '+openCount;
+  ['capture','thoughts','todos'].forEach(v => {
+    document.getElementById('nav-'+v).classList.toggle('active', state.view===v);
+  });
+
+  const wrap = h('div', {class:'fade'});
+  if (state.view==='capture') wrap.appendChild(renderCapture(T));
+  else if (state.view==='thoughts') wrap.appendChild(renderThoughts(T));
+  else wrap.appendChild(renderTodos(T));
+  main.appendChild(wrap);
+}
+
+// ═══════════════════════════════════════════════
+// ONLINE/OFFLINE
+// ═══════════════════════════════════════════════
+function updateOnlineStatus() {
+  state.online = navigator.onLine;
+  const banner = document.getElementById('offline-banner');
+  if (!state.online) banner.classList.add('show');
+  else {
+    banner.classList.remove('show');
+    // Process queue when back online
+    if (state.data.queue.length > 0) {
+      setTimeout(processQueue, 500);
+    }
+  }
+  render();
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ═══════════════════════════════════════════════
+// SERVICE WORKER REGISTRATION
+// ═══════════════════════════════════════════════
+const SW_CODE = `
+const CACHE = 'tamis-os-v1';
+const ASSETS = [
+  self.location.pathname,
+  'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Anton&display=swap',
+];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  if (e.request.url.includes('anthropic.com')) return; // never cache API calls
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        if (res && res.status === 200 && res.type !== 'opaque') {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+    })
+  );
+});
+`;
+
+function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  const blob = new Blob([SW_CODE], { type:'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(url).catch(e => console.log('SW:', e));
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  state.data = loadData();
+  const prefs = loadPrefs();
+  if (prefs.lang) state.lang = prefs.lang;
+  if (prefs.area) state.area = prefs.area;
+  if (prefs.targetLang) state.targetLang = prefs.targetLang;
+  if (prefs.trainMode) state.trainMode = prefs.trainMode;
+  state.online = navigator.onLine;
+  if (!state.online) document.getElementById('offline-banner').classList.add('show');
+  registerSW();
+  render();
+  // Update lang buttons to match stored lang
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    const lMatch = LANGS.find(l => l.label === b.textContent.trim() || l.id === b.textContent.trim().toLowerCase());
+    if (lMatch) b.classList.toggle('active', lMatch.id === state.lang);
+  });
+}
+
+// Check for API key on load
+window.addEventListener('load', () => {
+  const key = getApiKey();
+  if (!key) {
+    document.getElementById('setup').classList.remove('hidden');
+  } else {
+    document.getElementById('setup').classList.add('hidden');
+    init();
+  }
+  // Allow Enter key in API key input
+  document.getElementById('api-key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveApiKey();
+  });
+});
+</script>
+</body>
+</html>
