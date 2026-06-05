@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#1a1814"/>
+  <!-- horizontal bar of T -->
+  <rect x="80" y="130" width="352" height="56" rx="10" fill="#f5f4f0"/>
+  <!-- vertical bar of T (overlaps horizontal bar for clean join) -->
+  <rect x="220" y="168" width="72" height="214" rx="10" fill="#f5f4f0"/>
+</svg>
